@@ -1,46 +1,76 @@
-#######
-# Cloudify Blueprint which describes the nodecellar application
-# https://github.com/ccoenraets/nodecellar
+#################################################################
+# Cloudify Blueprint which describes the nodecellar application.
+# see https://github.com/ccoenraets/nodecellar
 #
+#################################################################
+
 tosca_definitions_version: cloudify_dsl_1_0
 
 imports:
      -  http://www.getcloudify.org/spec/cloudify/3.0/types.yaml
-     -  http://www.getcloudify.org/spec/bash-plugin/1.0/plugin.yaml
 
 plugins:
     nodecellar_config:
         executor: host_agent
         source: nodecellar-config-plugin
-            
 
 node_types:
     mongo_database:
-        derived_from: cloudify.types.bash.db_server
+        derived_from: cloudify.types.db_server
         properties:
             role: {}
-            port: {}
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                create: mongo-scripts/install-mongo.sh
+                start:
+                    implementation: mongo-scripts/start-mongo.sh
+                    inputs:
+                        port:
+                          description: >
+                              The Mongo server port
+                stop: mongo-scripts/stop-mongo.sh
 
     nodejs_server:
-        derived_from: cloudify.types.bash.app_server
-        
+        derived_from: cloudify.types.app_server
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                create: nodejs-scripts/install-nodejs.sh
+
     nodejs_app:
-        derived_from: cloudify.types.bash.app_module
-        properties:
-            app_name: {}
-            startup_script: {}
-            git_url: {}
-            git_branch: {}
-            base_port: {}
-            num_instances: {}
-            env_file_path:
-                default: ''
+        derived_from: cloudify.types.app_module
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                create:
+                    implementation: nodejs-scripts/install-app.sh
+                    inputs:
+                        app_name:
+                          description: >
+                              The application name
+                        git_url:
+                          description: >
+                              The application git url
+                        git_branch:
+                          description: >
+                              The application branch
+                start:
+                    implementation: nodejs-scripts/start-app.sh
+                    inputs:
+                        base_port:
+                          description: >
+                              The application's port
+                        env_file_path:
+                          description: >
+                              Extra environment variables.
+                              These will sourced inside the script.
+                          default: ''
+                stop: nodejs-scripts/stop-app.sh
+
 relationships:
     nodecellar_connected_to_mongo:
         derived_from: cloudify.relationships.connected_to
         source_interfaces:
             cloudify.interfaces.relationship_lifecycle:
-                - postconfigure: nodecellar_config.nodecellar_config_plugin.tasks.get_mongo_host_and_port
+                postconfigure: nodecellar_config.nodecellar_config_plugin.tasks.get_mongo_host_and_port
      
 node_templates:
     nodejs_vm:
@@ -49,7 +79,7 @@ node_templates:
             ip: 127.0.0.1
             cloudify_agent:
                 key: /home/vagrant/.ssh/cloudify_private_key
-            
+
     mongod_vm:
         type: cloudify.types.host
         properties:
@@ -59,13 +89,13 @@ node_templates:
 
     mongod:
         type: mongo_database
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                start:
+                    inputs:
+                        port: 27017
         properties:
             role: mongod
-            port: 27017
-            scripts:
-                create: mongo-scripts/install-mongo.sh
-                start: mongo-scripts/start-mongo.sh
-                stop: mongo-scripts/stop-mongo.sh
         relationships:
             -   target: mongod_vm
                 type: cloudify.relationships.contained_in
@@ -73,25 +103,21 @@ node_templates:
     nodejs:
         type: nodejs_server
         properties:
-            scripts:
-                create: nodejs-scripts/install-nodejs.sh
         relationships:
             -   type: cloudify.relationships.contained_in
                 target: nodejs_vm
 
     nodecellar_app:
         type: nodejs_app
-        properties:
-            app_name: nodecellar
-            startup_script: server.js
-            git_url: https://github.com/uric/nodecellar.git
-            git_branch: master
-            base_port: 8080
-            num_instances: 1
-            scripts:
-                create: nodejs-scripts/install-app.sh
-                start: nodejs-scripts/start-app.sh
-                stop: nodejs-scripts/stop-app.sh
+        cloudify.interfaces.lifecycle:
+            create:
+                inputs:
+                    app_name: nodecellar
+                    git_url: https://github.com/uric/nodecellar.git
+                    git_branch: master
+            start:
+                inputs:
+                    base_port: 8080
         relationships:
             -   type: cloudify.relationships.contained_in
                 target: nodejs
