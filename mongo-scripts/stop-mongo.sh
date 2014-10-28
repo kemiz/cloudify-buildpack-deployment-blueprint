@@ -1,16 +1,11 @@
 #!/bin/bash
 
-function info(){ builtin echo [INFO] [$(basename $0)] $@; }
-function error(){ builtin echo [ERROR] [$(basename $0)] $@; }
-
-#. ${CLOUDIFY_LOGGING}
-#. ${CLOUDIFY_FILE_SERVER}
-
-
 TEMP_DIR="/tmp"
-MONGO_ROOT=${TEMP_DIR}/${CLOUDIFY_EXECUTION_ID}/mongodb
-PID_FILE="mongo.pid"
+MONGO_ROOT=${TEMP_DIR}/$(ctx execution-id)/mongodb
+PID_FILE="/tmp/mongo.pid"
 
-PID=`cat ${MONGO_ROOT}/${PID_FILE}`
-info "Shutting down mongo. pid = ${PID}"
+PID=`cat ${PID_FILE}`
+ctx logger info "Shutting down mongo. pid = ${PID}"
 kill -9 ${PID} || exit $?
+ctx logger info "Removing PID file from ${PID_FILE}"
+rm ${PID_FILE}
