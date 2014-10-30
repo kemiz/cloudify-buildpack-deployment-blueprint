@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 
 TEMP_DIR=/tmp
 # mkdir -p $TEMP_DIR
@@ -11,7 +11,7 @@ ctx logger info "Using git_url: ${git_url}"
 ctx logger info "Using git_branch: ${git_branch}"
 
 ctx logger info "Changing directory to working dir: ${BASE_DIR}"
-cd ${BASE_DIR} || exit $?
+cd ${BASE_DIR}
 
 YUM_CMD=$(which yum)
 APT_GET_CMD=$(which apt-get)

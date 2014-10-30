@@ -1,8 +1,9 @@
-#######
-# Cloudify Blueprint which describes the nodecellar application
-# https://github.com/ccoenraets/nodecellar
-# Author: kemiz
-#######
+#################################################################
+# Cloudify Blueprint which describes the nodecellar application`#
+# https://github.com/ccoenraets/nodecellar                      #
+# Author: kemiz                                                 #
+#################################################################
+
 tosca_definitions_version: cloudify_dsl_1_0
 
 imports:
@@ -30,6 +31,21 @@ inputs:
             Path to a private key that resided on the management machine.
             SSH-ing into agent machines will be done with this key.
 
+    app_name:
+        description: >
+            Name of the app to be deployed
+
+    git_url:
+        description: > 
+            Web applications Git url
+
+    git_branch:
+        description: >
+            The Git branch
+
+    base_port:
+        description: >
+            Web application port
 
 #################################################################
 # Blueprint types
@@ -41,7 +57,7 @@ node_types:
   docker_container:
     derived_from: cloudify.types.app_server
 
-  docker_app:
+  dockerised_app:
     derived_from: cloudify.types.app_module
     properties:
 
@@ -86,6 +102,45 @@ node_types:
 ##################################################################
 node_templates:
 
+    # docker_container_test:
+    #     type: cloudify.types.host
+    #     interfaces:
+    #         cloudify.interfaces.lifecycle:
+    #             create:
+    #             implementation: docker.docker_plugin.tasks.create
+    #             inputs:
+    #                 daemon_client: {}
+    #                 image_import:
+    #                     src: http://insert/url/to/image/here
+    #                 # could also be image_build, see below
+    #                 image_build:
+    #                     path: /tmp/
+    #                     rm: true
+
+    #         configure:
+    #             implementation: docker.docker_plugin.tasks.configure
+    #             inputs:
+    #                 daemon_client:    {}
+    #                 container_config:
+    #                     command: /bin/echo hello
+
+    #         start:
+    #             implementation: docker.docker_plugin.tasks.run
+    #             inputs:
+    #                 daemon_client:   {}
+    #                 container_start: {}
+    #         stop:
+    #             implementation: docker.docker_plugin.tasks.stop
+    #             inputs:
+    #                 daemon_client:  {}
+    #                 container_stop: {}
+    #         delete:
+    #             implementation: docker.docker_plugin.tasks.delete
+    #             inputs:
+    #                 daemon_client:    {}
+    #                 # required in case container to remove is currently running
+    #                 container_stop:   {}
+    #                 container_remove: {}
     # Server to host both mongo and node
     vm:
         type: cloudify.types.host
@@ -100,20 +155,19 @@ node_templates:
         type: docker_container
         interfaces:
             cloudify.interfaces.lifecycle:                    
-                  create: scripts/install-docker.sh
+                create: scripts/install-docker.sh
         relationships:
             - type: cloudify.relationships.contained_in
               target: vm
 
-    # the actual nodejs application
-    nodecellar_app:
-        type: docker_app
+    # the application node
+    app:
+        type: dockerised_app
         properties:
-            app_name: nodecellar
-            # dockerised nodecellar app
-            git_url: https://github.com/kemiz/nodecellar.git
-            git_branch: master
-            base_port: 3000
+            app_name: { get_input: app_name }
+            git_url: { get_input: git_url }
+            git_branch: { get_input: git_branch }
+            base_port: { get_input: base_port }
         interfaces:
             cloudify.interfaces.lifecycle:            
                   create: 
@@ -121,29 +175,31 @@ node_templates:
                     inputs:
                         process:
                             # this directory should already exist
-                            cwd: /tmp/workdir
+                            cwd: /tmp/
                             args:
                             env:
-                                APP_NAME: { get_property: [ nodecellar_app, app_name ] }
-                                APP_PORT: { get_property: [ nodecellar_app, base_port ] }                 
+                                APP_NAME: { get_property: [ app, app_name ] }
+                                APP_PORT: { get_property: [ app, base_port ] }                 
                   start:
                     implementation: scripts/start-app.sh
                     inputs:
                         process:
                             # this directory should already exist
-                            cwd: /tmp/workdir
+                            cwd: /tmp/
                             args: [arg1_value, arg2_value]
                             env:
-                                MY_ENV_VARIABLE: MY_ENV_VARIABLE_VALUE
+                                APP_NAME: { get_property: [ app, app_name ] }
+                                APP_PORT: { get_property: [ app, base_port ] }  
                   stop: 
                     implementation: scripts/stop-app.sh
                     inputs:
                         process:
                             # this directory should already exist
-                            cwd: /tmp/workdir
+                            cwd: /tmp/
                             args: [arg1_value, arg2_value]
                             env:
-                                MY_ENV_VARIABLE: MY_ENV_VARIABLE_VALUE                  
+                                APP_NAME: { get_property: [ app, app_name ] }
+                                APP_PORT: { get_property: [ app, base_port ] }                
         relationships:
             - type: cloudify.relationships.contained_in
               target: docker_container
@@ -160,4 +216,4 @@ outputs:
     description: Web application endpoint
     value:
       ip_address: { get_input: host_ip }
-      port: { get_property: [ nodecellar_app, base_port ] }
+      port: { get_property: [ app, base_port ] }
