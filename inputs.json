@@ -1,5 +1,5 @@
 {
-	"host_ip": "<ENTER-HOST-IP>",
-	"agent_user": "<ENTER-AGENT-USER>",
-	"agent_private_key_path": "<ENTER-AGENT-PRIVATE-KEY-PATH>"
+	"host_ip": "192.168.0.21",
+	"agent_user": "vagrant",
+	"agent_private_key_path": "/home/vagrant/.vagrant.d/key"
 }

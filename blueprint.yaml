@@ -1,7 +1,8 @@
 #######
 # Cloudify Blueprint which describes the nodecellar application
 # https://github.com/ccoenraets/nodecellar
-#
+# Author: kemiz
+#######
 tosca_definitions_version: cloudify_dsl_1_0
 
 imports:
@@ -37,27 +38,15 @@ inputs:
 #################################################################
 node_types:
 
-  mongo_database:
-    derived_from: cloudify.types.db_server
-    properties:
-      role:
-        description: MongoDB role
-      port:
-        description: MongoDB port
-
-  nodejs_server:
+  docker_container:
     derived_from: cloudify.types.app_server
 
-  nodejs_app:
+  docker_app:
     derived_from: cloudify.types.app_module
     properties:
 
       app_name:
         description: Application name
-        type: string
-
-      startup_script:
-        description: Nodejs startup script
         type: string
 
       git_url:
@@ -72,29 +61,22 @@ node_types:
         description: Web application port
         type: integer
 
-      num_instances:
-        description: Number of instances
-        type: integer
-
-      env_file_path:
-          type: string
-          default: ''
-
 
 #################################################################
 # Blueprint relationships
 #
 # Custom relatioships for this blueprint.
 #################################################################
-relationships:
+# relationships:
 
-    # Used for passing mongo environment variables 
-    # to the nodejs application
-    nodecellar_connected_to_mongo:
-        derived_from: cloudify.relationships.connected_to
-        source_interfaces:
-            cloudify.interfaces.relationship_lifecycle:
-                - postconfigure: nodecellar-scripts/postconfigure.py
+#     # Used for passing mongo environment variables 
+#     # to the nodejs application
+#     nodecellar_connected_to_mongo:
+#         derived_from: cloudify.relationships.connected_to
+#         source_interfaces:
+#             cloudify.interfaces.relationship_lifecycle:
+#                   postconfigure: 
+#                       implementation: nodecellar-scripts/postconfigure.py
 
 
 ##################################################################
@@ -113,51 +95,58 @@ node_templates:
                 user: { get_input: agent_user }
                 key: { get_input: agent_private_key_path }
 
-    # The mongo database
-    mongod:
-        type: mongo_database
-        properties:
-            role: mongod
-            port: 27017
-        interfaces:
-            cloudify.interfaces.lifecycle:            
-                - create: mongo-scripts/install-mongo.sh
-                - start: mongo-scripts/start-mongo.sh
-                - stop: mongo-scripts/stop-mongo.sh
-        relationships:
-            - target: vm
-              type: cloudify.relationships.contained_in
-
-    # node framework
-    nodejs:
-        type: nodejs_server
+    # docker
+    docker_container:
+        type: docker_container
         interfaces:
             cloudify.interfaces.lifecycle:                    
-                - create: nodejs-scripts/install-nodejs.sh
+                  create: scripts/install-docker.sh
         relationships:
             - type: cloudify.relationships.contained_in
               target: vm
 
     # the actual nodejs application
     nodecellar_app:
-        type: nodejs_app
+        type: docker_app
         properties:
             app_name: nodecellar
-            startup_script: server.js
-            git_url: https://github.com/uric/nodecellar.git
+            # dockerised nodecellar app
+            git_url: https://github.com/kemiz/nodecellar.git
             git_branch: master
-            base_port: 8080
-            num_instances: 1
+            base_port: 3000
         interfaces:
             cloudify.interfaces.lifecycle:            
-                - create: nodejs-scripts/install-app.sh
-                - start: nodejs-scripts/start-app.sh
-                - stop: nodejs-scripts/stop-app.sh
+                  create: 
+                    implementation: scripts/install-app.sh
+                    inputs:
+                        process:
+                            # this directory should already exist
+                            cwd: /tmp/workdir
+                            args:
+                            env:
+                                APP_NAME: { get_property: [ nodecellar_app, app_name ] }
+                                APP_PORT: { get_property: [ nodecellar_app, base_port ] }                 
+                  start:
+                    implementation: scripts/start-app.sh
+                    inputs:
+                        process:
+                            # this directory should already exist
+                            cwd: /tmp/workdir
+                            args: [arg1_value, arg2_value]
+                            env:
+                                MY_ENV_VARIABLE: MY_ENV_VARIABLE_VALUE
+                  stop: 
+                    implementation: scripts/stop-app.sh
+                    inputs:
+                        process:
+                            # this directory should already exist
+                            cwd: /tmp/workdir
+                            args: [arg1_value, arg2_value]
+                            env:
+                                MY_ENV_VARIABLE: MY_ENV_VARIABLE_VALUE                  
         relationships:
             - type: cloudify.relationships.contained_in
-              target: nodejs
-            - type: nodecellar_connected_to_mongo
-              target: mongod
+              target: docker_container
 
 ######################################################################
 # Blueprint outputs
