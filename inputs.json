@@ -1,0 +1,9 @@
+{
+	"host_ip": "192.168.0.25",
+	"agent_user": "vagrant",
+	"agent_private_key_path": "/home/vagrant/.vagrant.d/key",
+	"git_url": "https://github.com/kemiz/nodecellar",
+	"git_branch": "master",	
+	"base_port": "3000",	
+	"app_name": "nodecellar"	
+}
