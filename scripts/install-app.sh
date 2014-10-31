@@ -42,7 +42,7 @@ else
     git clone ${git_url} -b ${git_branch} || exit $?
 fi
 
-cd nodecellar || exit $?
+cd $APP_NAME || exit $?
 if [[ ! -z $git_branch ]]; then
     ctx logger info "checking out branch ${git_branch}" 
     git checkout ${git_branch} || exit $?
